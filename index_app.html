@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay peer tutoring prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a phone running the app, with a "relay track" guide beside it that ties each screen to the survey evidence. */
+:root{
+  --bg:#eef0f4;          /* stage */
+  --paper:#ffffff;       /* app surface */
+  --ink:#14161a;         /* text */
+  --ink-2:#565a63;       /* secondary text */
+  --line:#e2e4ea;        /* hairlines */
+  --baton:#2f5bff;       /* accent: the baton passed from one year to the next */
+  --baton-soft:#e8edff;
+  --good:#11845b; --good-soft:#e3f5ec;
+  --warn:#b4610a; --warn-soft:#fdf0de;
+  --bad:#c23b3b;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2.5px solid var(--baton);outline-offset:2px}
+
+.stage{min-height:100%;display:grid;grid-template-columns:minmax(280px,420px) auto;gap:48px;justify-content:center;align-items:center;padding:32px 24px}
+
+/* ---------- guide ---------- */
+.guide{display:flex;flex-direction:column;gap:20px;max-width:420px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:34px;height:34px;border-radius:10px;background:var(--ink);display:grid;place-items:center}
+.brand-name{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em}
+.brand-tag{font-size:12px;color:var(--ink-2);border:1px solid var(--line);background:var(--paper);padding:2px 8px;border-radius:99px}
+.guide h1{font-family:var(--display);font-weight:800;font-size:34px;line-height:1.05;letter-spacing:-.03em;margin:0;text-wrap:balance}
+.guide h1 em{font-style:normal;color:var(--baton)}
+.guide .lede{color:var(--ink-2);margin:0;max-width:60ch}
+.track{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;position:relative}
+.track::before{content:"";position:absolute;left:13px;top:12px;bottom:12px;width:2px;background:var(--line)}
+.track button{all:unset;cursor:pointer;display:flex;gap:12px;align-items:center;padding:6px 8px 6px 0;border-radius:8px;width:100%;position:relative}
+.track button:focus-visible{outline:2px solid var(--baton)}
+.track .dot{width:28px;height:28px;border-radius:50%;background:var(--paper);border:2px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--ink-2);flex:none;z-index:1;font-variant-numeric:tabular-nums}
+.track .on .dot{background:var(--baton);border-color:var(--baton);color:#fff}
+.track .done .dot{border-color:var(--baton);color:var(--baton)}
+.track .lbl{font-weight:600;font-size:14px}
+.track .on .lbl{color:var(--baton)}
+.evidence{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.evidence .k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.evidence .ev-stat{font-family:var(--display);font-weight:800;font-size:40px;line-height:1;color:var(--baton);letter-spacing:-.03em}
+.evidence .ev-stat-l{font-weight:600}
+.evidence p{margin:0;color:var(--ink-2);font-size:14px}
+.guide-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.qrcard{display:flex;gap:16px;align-items:center;background:var(--paper);border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px}
+.qrbox{width:116px;height:116px;flex:none;display:grid;place-items:center;border-radius:10px;background:#fff}
+.qrbox svg{display:block}
+.qrbox.empty{border:2px dashed var(--line);color:var(--ink-2);font-size:11px;text-align:center;padding:8px}
+.qrcard b{font-family:var(--display);font-size:18px;letter-spacing:-.01em}
+.qrcard p{margin:4px 0 0;font-size:13px;color:var(--ink-2)}
+.qrcard a{color:var(--baton);font-weight:600;font-size:12px;word-break:break-all}
+.ghost{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-weight:600;font-size:13px}
+.ghost:hover{border-color:var(--ink-2)}
+
+/* ---------- phone ---------- */
+.phone{width:390px;height:800px;background:var(--ink);border-radius:46px;padding:12px;box-shadow:0 30px 60px -20px rgba(20,22,26,.35)}
+.device{width:100%;height:100%;background:var(--paper);border-radius:36px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.status{height:34px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:12px;font-weight:700;flex:none}
+.screen{flex:1;overflow-y:auto;padding:6px 20px 20px;display:flex;flex-direction:column;gap:16px}
+.screen.anim{animation:in .28s ease-out}
+@keyframes in{from{opacity:.4;transform:translateY(8px)}to{opacity:1;transform:none}}
+.tabbar{flex:none;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);padding:8px 8px 14px;background:var(--paper)}
+.tabbar button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--ink-2);padding:4px;border-radius:10px}
+.tabbar button:focus-visible{outline:2px solid var(--baton)}
+.tabbar button.on{color:var(--baton)}
+.tabbar svg{width:22px;height:22px}
+.tabicon{position:relative;display:inline-flex}
+.badge{position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;border-radius:8px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+.convo{all:unset;cursor:pointer;display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:16px}
+.convo:hover{border-color:var(--ink-2)}
+.convo:focus-visible{outline:2px solid var(--baton)}
+.convo .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.convo .last{font-size:13px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.convo.unread .last{color:var(--ink);font-weight:600}
+.dotnew{width:10px;height:10px;border-radius:50%;background:var(--baton);flex:none}
+
+/* ---------- app components ---------- */
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.hello{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.02em;line-height:1.1;margin:0}
+.muted{color:var(--ink-2)}
+.small{font-size:13px}
+.xs{font-size:12px}
+.avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;flex:none;font-size:14px}
+.back{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-2);font-size:14px}
+.h2{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.02em;margin:0;line-height:1.15}
+.sec{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);margin:4px 0 -6px}
+.card{border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--paper)}
+.card.hero{background:var(--ink);color:#fff;border:none;padding:18px;gap:12px}
+.card.hero .muted{color:#b9bcc6}
+.btn{border:none;border-radius:14px;padding:14px 16px;font-weight:700;font-size:15px;background:var(--baton);color:#fff;width:100%;display:flex;justify-content:center;align-items:center;gap:8px}
+.btn:hover{filter:brightness(1.07)}
+.btn.light{background:#fff;color:var(--ink)}
+.btn.sec2{background:var(--baton-soft);color:var(--baton)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;align-items:center}
+.between{justify-content:space-between}
+.wrap{flex-wrap:wrap}
+.chip{white-space:nowrap;border:1.5px solid var(--line);background:var(--paper);border-radius:99px;padding:7px 12px;font-size:13px;font-weight:600}
+.chip.wrapchip{white-space:normal;text-align:left;line-height:1.25}
+.chip.on{border-color:var(--baton);background:var(--baton-soft);color:var(--baton)}
+.pill{white-space:nowrap;display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:700}
+.pill.blue{background:var(--baton-soft);color:var(--baton)}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.grey{background:#f0f1f4;color:var(--ink-2)}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:13px}
+input.t,select.t,textarea.t{border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--paper);width:100%}
+input.t:focus,select.t:focus,textarea.t:focus{border-color:var(--baton);outline:none}
+textarea.t{resize:none;min-height:70px}
+
+/* lost-o-meter */
+.meter{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.meter span{height:8px;border-radius:4px;background:#eceef2}
+.meter span.f1{background:#9fb6ff}.meter span.f2{background:#7d9bff}.meter span.f3{background:#5a7fff}.meter span.f4{background:#3f66ff}.meter span.f5{background:#1f3fd6}
+.lostpick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.lostpick button{border:1.5px solid var(--line);background:var(--paper);border-radius:12px;padding:8px 0;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:15px}
+.lostpick button small{font-size:10px;font-weight:600;color:var(--ink-2)}
+.lostpick button.on{border-color:var(--baton);background:var(--baton-soft);color:var(--baton)}
+
+/* tutor match */
+.match{border:1.5px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.match.best{border-color:var(--baton);box-shadow:0 0 0 3px var(--baton-soft)}
+.score{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:-.02em;color:var(--baton);line-height:1;font-variant-numeric:tabular-nums}
+.why{display:grid;grid-template-columns:92px 1fr 30px;gap:6px 8px;align-items:center;font-size:12px}
+.why .bar{height:6px;background:#eceef2;border-radius:3px;overflow:hidden}
+.why .bar i{display:block;height:100%;background:var(--baton);border-radius:3px}
+.why .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+
+/* chat */
+.chat{display:flex;flex-direction:column;gap:8px}
+.msg{max-width:80%;padding:9px 12px;border-radius:16px;font-size:14px}
+.msg.them{background:#f0f1f4;border-bottom-left-radius:4px;align-self:flex-start}
+.msg.me{background:var(--baton);color:#fff;border-bottom-right-radius:4px;align-self:flex-end}
+.msg.sys{align-self:center;background:var(--good-soft);color:var(--good);font-size:12px;font-weight:600;border-radius:99px;padding:5px 12px}
+.booking{border:1.5px dashed var(--baton);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;background:var(--baton-soft)}
+.composer{display:flex;gap:8px}
+.composer input{flex:1}
+
+/* scale 1-10 */
+.ten{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.ten button{border:1.5px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 0;font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.ten button.on{background:var(--baton);border-color:var(--baton);color:#fff}
+
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:2px}
+.stat b{font-family:var(--display);font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.progress{height:8px;background:#eceef2;border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--baton)}
+
+.ddemand{display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center;font-size:12px}
+.ddemand .bars{display:flex;flex-direction:column;gap:3px}
+.ddemand .b{height:9px;border-radius:3px}
+.ddemand .b.d{background:var(--baton)}
+.ddemand .b.s{background:#f08a4b}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+.spinner{width:64px;height:64px;border-radius:50%;border:5px solid var(--baton-soft);border-top-color:var(--baton);animation:spin 1s linear infinite;margin:40px auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.center{text-align:center}
+.note{font-size:11px;color:var(--ink-2);text-align:center}
+
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr;gap:24px;padding:16px}
+  .guide{max-width:none;order:2}
+  .phone{order:1;justify-self:center}
+}
+@media (max-width:430px){
+  .phone{width:100%;height:calc(100vh - 32px);min-height:640px;border-radius:0;padding:0;background:none;box-shadow:none}
+  .device{border-radius:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .screen.anim{animation:none}
+  .spinner{animation-duration:3s}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="guide" aria-label="Demo guide">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="4" rx="2" transform="rotate(-30 12 12)" fill="#2f5bff"/><circle cx="6" cy="17" r="2.2" fill="#fff"/><circle cx="18" cy="7" r="2.2" fill="#fff"/></svg>
+      </div>
+      <span class="brand-name">Relay</span>
+      <span class="brand-tag">aivancity · clickable prototype</span>
+    </div>
+    <h1>Pass the course on to <em>the year below</em>.</h1>
+    <p class="lede">Relay matches a student stuck on a course with a student one year above who did well in it. Click through the app; this guide shows the survey finding behind each screen.</p>
+    <ol class="track" id="track"></ol>
+    <div class="qrcard" id="qrcard"></div>
+    <div class="evidence" id="evidence" aria-live="polite"></div>
+    <div class="guide-foot">
+      <button class="ghost" id="restart" type="button">Restart demo from sign-in</button>
+      <span>Example people and data · survey figures from 15 responses, Nov 2026</span>
+    </div>
+  </aside>
+
+  <div class="phone">
+    <div class="device">
+      <div class="status" aria-hidden="true"><span>9:41</span><span>●●● 5G ▮</span></div>
+      <main class="screen" id="app"></main>
+      <nav class="tabbar" id="tabbar" aria-label="App sections"></nav>
+    </div>
+  </div>
+</div>
+
+<script>
+/* qrcode-generator 1.4.4 (Kazuhiko Arase, MIT licence), inlined so the QR works offline */
+// Copyright (c) 2009 Kazuhiko Arase
+// Licensed under the MIT license:
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,(function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1}))},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(t,r){var e=n("友");if(2!=e.length||38726!=(e[0]<<8|e[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}((function(){return qrcode}));
+</script>
+<script>
+/* =====================================================================
+   Official curricula of aivancity degree programmes, copied from the
+   "Curriculum" tab of each programme page on aivancity.ai (Nov 2026).
+   Only taught courses are listed: AI clinics, career coaching, placements,
+   trips and student-life activities are left out.
+   ===================================================================== */
+const PROGRAMS = [
+ {id:"pge", short:"PGE", name:"Grande École Programme", years:{
+  1:{title:"Data processing", blocks:{
+   "Computer Science":["Operating System Management","An Introduction to Databases","Data analysis using Excel"],
+   "AI technology & programming":["Data acquisition, storage and analysis","Data pre-processing and visualisation","Algorithms and Programming in Python","Machine Learning: use cases and applications"],
+   "Maths & Statistics for AI":["Statistical analysis of the data","Mathematics of AI"],
+   "Business management":["Business and Market Economics","The company’s legal environment","An Introduction to Business Information Systems"],
+   "AI, Ethics & Society":["Engineering Ethics","AI law","AI Ethics"],
+   "Languages and cultures":["English","Project Voltaire"]}},
+  2:{title:"Data modelling", blocks:{
+   "Computer Science":["Servers and computer networks","Information Systems Architecture"],
+   "AI tech & programming":["Machine Learning","Advanced Programming with Python","Data visualisation with R"],
+   "Maths & Statistics for AI":["Mathematical models of learning","Optimisation subject to constraints"],
+   "Business management":["Marketing","Accounting and financial information","AI Development Project Management"],
+   "AI, Ethics & Society":["AI Ethics","Ethics by design","Regulation of technologies"],
+   "Languages and cultures":["English","Project Voltaire"]}},
+  3:{title:"Development of Artificial Intelligence", blocks:{
+   "Computer Science":["Cloud computing","Information and data security","Data Wrangling"],
+   "AI technology & programming":["Practical Machine Learning","Coding for AI and Data Science","DevOps for artificial intelligence"],
+   "Mathematics and statistics for AI":["The Mathematics of Deep Learning","Time-Series Analysis"],
+   "Business management":["Cost analysis and budgeting","Business Game","HR management & collective intelligence"],
+   "AI, Ethics & Society":["Data Governance","Compliance and Responsible AI","The ethics of algorithms"],
+   "Languages and Cultures":["English","Working in an international environment"]}},
+  4:{title:"Explore in greater depth and develop", blocks:{
+   "Practical Deep Learning":["Machine Learning Business Projects","Deep learning: methods and applications","Natural language processing","Advanced data analysis and visualisation"],
+   "Deployed AI":["Big Data in practice","Deep learning: computer vision","Deployment and maintenance of AI models"],
+   "Business management":["Management of digital systems","Supply chain management, smart operations","Business strategy and digital transformation","AI & Data Science for Marketing"],
+   "AI, Ethics & Society":["Data anonymisation","Fair ML","Robustness","XAI: Explainable Artificial Intelligence"],
+   "Languages and cultures":["TOEIC preparation or French as a Foreign Language"],
+   "Projects & personal development":["AI Project Management"]}},
+  5:{title:"Having a strategic vision and specialising", blocks:{
+   "Develop a responsible and strategic vision for AI":["Generative AI","Cyber security and artificial intelligence","Artificial Intelligence of Things","Developments in AI law: practical examples","Green Artificial Intelligence","Artificial Intelligence and Human-Machine Interface","Change management","Data-driven business models","The Future of Artificial Intelligence","Structuring and managing an AI project"],
+   "Applications of AI in various sectors":["AI-powered Customer Relationship Management","Industrial AI","AI in Agriculture","AI for Health","AI in Finance","AI for Marketing"],
+   "Projects & personal development":["Responsible leadership and management"]}}}},
+ {id:"bsc", short:"BSc", name:"Bachelor of Science in Applied Artificial Intelligence", years:{
+  1:{title:"Data Processing", blocks:{
+   "Computer Science":["Operating Systems Management","Introduction to Databases","Data Analysis with Excel"],
+   "AI Tech & Programming":["Data Visualisation and Analysis","Algorithms","Python Programming","Machine Learning: use cases and applications"],
+   "Maths & Statistics for AI":["Probability and Statistics","Linear Algebra"],
+   "Business Management":["Business and Market Economics","The Legal Environment of Business","Introduction to Business Information Systems"],
+   "AI, Ethics & Society":["Engineering Ethics","AI Law","Ethics of AI"],
+   "Languages and Cultures":["English","Project Voltaire"]}},
+  2:{title:"Data Modelling", blocks:{
+   "Computer Science":["Servers and Computer Networks","Information Systems Architecture"],
+   "AI Technology & Programming":["Machine Learning","Advanced Python Programming","Advanced data analysis"],
+   "Maths & Statistics for AI":["Mathematical Learning Models","Constrained optimisation"],
+   "Business Management":["Marketing","Accounting and Financial Information","AI development project management"],
+   "AI, Ethics & Society":["AI Ethics","Ethics by design","Technology Regulation"],
+   "Languages and Cultures":["English","Project Voltaire"]}},
+  3:{title:"Artificial Intelligence Development", blocks:{
+   "Computer Science":["Big Data and Cloud Computing","Information & Data Security","Data Wrangling"],
+   "AI Technology & Programming":["Practical Machine Learning","Coding for AI and Data Science","MLOps"],
+   "AI, Ethics & Society":["Data governance","Compliance & Responsible AI","Ethics of algorithms"],
+   "Languages and cultures":["English","Working in an international environment"]}}}},
+ {id:"msc-decc", short:"MSc DE&CC", name:"MSc Data Engineering and Cloud Computing", years:{
+  1:{title:"Understanding Data Engineering", blocks:{
+   "Data analytics & programming":["Data Project Modelling and Design","An Introduction to Databases","Advanced Relational Databases","Data Analysis and Visualisation"],
+   "Distributed Data Systems":["Distributed Algorithms","Cloud Environment with Azure"],
+   "Data Computing":["Project Management","Cloud Computing on AWS","Machine Learning"],
+   "Data-Driven Strategy":["Web Security","Data Laws and Regulations"]}},
+  2:{title:"Mastering cloud tools", blocks:{
+   "Big Data Management":["The Theory of Big Data in Scala Programming","Big Data in Practice: HDFS & Spark"],
+   "Large-Scale Data Services":["Cloud Engineering on GCP","Data Pipeline"],
+   "Cloud Innovations":["NoSQL Databases","Inteligent Engineering","Data Security & Cryptography"],
+   "Cloud Data & Society":["Green Computing","Data Ethics","Data Governance"]}}}},
+ {id:"msc-dm", short:"MSc DM", name:"MSc in Data Management", years:{
+  1:{title:"Year 1", blocks:{
+   "Boarding for aivancity (1st year)":["Big Data and Artificial Intelligence","Mathematics and Statistics","Data Analysis and Data Visualisation","Programming","Soft skills"],
+   "Data analysis":["Probability and statistics for data analysis","Data analysis in Python","Advanced Excel"],
+   "Data visualisation & reporting manager":["Data Visualisation with Power BI (preparation for Microsoft PL300 certification)","Data Reporting","Data law (CNIL, GDPR and DPO)"],
+   "Data Structure & Exploration":["Exploratory Data Analysis","Design & Algorithmic Modelling","Integration & Cloud"],
+   "Data for Business":["Data Project Management","Data-driven decision-making","Business Intelligence & Open Data"]}},
+  2:{title:"Year 2", blocks:{
+   "Boarding for aivancity (2nd Year)":["Statistics","Advanced Excel","IT (architecture, networks, servers)","Python for data analysis","Power BI","Data security","Ethics","Soft skills"],
+   "Advanced data analysis":["Data analysis and transformation","Causal inference","Big Data & Cloud Computing","Web Data & APIs"],
+   "Machine Learning":["Mathematics for Machine Learning","Fundamentals of Machine Learning and Metrics","Machine Learning Project Sprint"],
+   "Ethics & Society":["Ethics of AI","Strategic Data Issues"],
+   "Business & Economics":["Data-Driven Business Models","Financial Data Analysis","Social Data & Social Listening"]}}}},
+ {id:"msc-aib", short:"MSc AI for Business", name:"Master of Science Artificial Intelligence for Business", years:{
+  1:{title:"12 months, part-time", blocks:{
+   "Quantitative Methods and Programming":["Fundamentals of AI Coding","Statistics","Programming for Data Science","Business Intelligence","Big Data & Cloud Computing","Linear Algebra and Calculus"],
+   "Data Science Modelling":["Data-driven decision-making","Traditional machine learning algorithms","Ethics, bias and limitations of machine learning"],
+   "Neural Networks & Deep Learning":["An Introduction to Neural Networks","Current deep learning methods (CNNs, LLMs, etc.)","Responsible deployment of deep learning"],
+   "Deployment and Management of an AI Project":["Generative AI","Applications of generative AI in business","Structuring and managing an AI project","Trustworthy Artificial Intelligence: fairness and explainability","Law and AI"]}}}},
+ {id:"msc-gen", short:"MSc GenAI & Agents", name:"MSc in Generative and Agent-Based Artificial Intelligence", years:{
+  1:{title:"12 months", blocks:{
+   "No-Code Approaches to Generative and Agent-Based AI":["An Introduction to Generative and Agent-Based AI: An Overview and the Fundamentals","Fundamentals of Mathematics and Statistics for Generative AI","Data Management and Preparation for AI (No-Code)","Rapid Prototyping and Automation of Agent-Based AI Workflows (No-Code)","Deployment of Hybrid, Sovereign and Agent-Based AI Architectures","Fundamentals of AI and Data (A Practical No-Code Approach)"],
+   "Development and Modelling of Generative and Agent-Based AI":["Typology and Architecture of Generative Models","Large Language Models (LLMs)","Model Fine-Tuning and Adaptation Techniques","Prompt Engineering and Output Optimisation","Advanced and Multimodal Architectures","Agentic AI"],
+   "Business Applications and Integration, Generative AI and Agent-Based Systems":["Generative and Agent-Based AI Strategy for Businesses","Design Thinking for Agent-Based Systems + Company Visit","Generative AI and Customer Relations (Chatbots, Virtual Assistants)","Transformation of Business Functions through AI Agents: Value Creation and Organisational Impact","Environments, Infrastructure and Enterprise Integration","Case Studies: Deployment and Real-World Testing (LLMOps)"],
+   "Ethics, Regulations and Governance of Generative and Agent-Based AI":["Regulatory Framework for Generative and Agent-Based AI (GDPR, AI Act, DSA, DMA)","Ethics, Bias and Autonomy in Generative and Agent-Based AI Systems","Security, Governance and Auditability of Generative and Agent-Based AI","Communication, AI Storytelling + AI Fair (MSc Ambassador Scheme)","Advanced Evaluation of Agent-Based Models and Systems","Performance Optimisation, Cost Reduction"]}}}},
+ {id:"msc-fin", short:"MSc Finance & Accounting", name:"MSc AI & Data for Finance & Accounting", years:{
+  1:{title:"12 months", blocks:{
+   "Phase 01: Master & Scale":["AI, Data & the Transformation of the Finance Function","Data, Analytics & Visualization for Finance","Data Architecture & Engineering for Finance"],
+   "Phase 02: Predict & Build":["Machine Learning & Predictive Finance","Generative AI for Finance","Designing and Building an AI Project for Finance"],
+   "Phase 03: Act, Orchestrate & Govern":["AI Agents & Financial Process Automation","Agent-Based Systems, Orchestration & AgentOps","AI and Data Governance, Risk, and Compliance"],
+   "Phase 04: Steer, Transform & Discern":["Managing an AI Project: From Idea to Value","Transforming the Finance Function & Becoming an Augmented Finance Professional"]}}}},
+ {id:"msc-mkt", short:"MSc Marketing & Communication", name:"MSc AI & Data for Marketing & Communication", years:{
+  1:{title:"12 months", blocks:{
+   "Phase 1: Master & Enhance":["AI, Data, and the Transformation of Marketing and Communication","Data, Analytics, and Marketing Performance Measurement","CRM, CDP, and Customer Data Architecture"],
+   "Phase 2: Predict, Create & Be Visible":["Machine Learning and Predictive Marketing","Generative AI, Branding, and Content Creation","Search, Media, and Acquisition in the Age of AI"],
+   "Phase 3: Act, Orchestrate & Govern":["Designing AI Products and Agents for Marketing","Agent-Based Customer Journeys and Conversational Commerce","Governance, Risks, and Responsible AI in Marketing and Communication"],
+   "Phase 4: Steer, Transform & Discern":["Managing AI Marketing Projects: From Idea to Value","Marketing Transformation and New Forms of Intelligence for the Augmented Marketer"]}}}},
+ {id:"msc-grc", short:"MSc AI Governance (GRC)", name:"MSc AI Governance, Risk, and Compliance", years:{
+  1:{title:"12 months", blocks:{
+   "Block 01: Understand & Protect":["Data and AI System Architecture","Machine Learning, Deep Learning, and Model Lifecycle","Generative AI, LLM & RAG","AI Agents & Agent-Based Systems","GDPR & Artificial Intelligence Systems","Data Governance, Quality & Privacy by Design"],
+   "Block 02: Protect, Qualify & Regulate":["International Data Flows, Cloud & Sovereignty","Data Compliance for AI Projects","AI Act: Qualifying and Classifying an AI System","AI Act in Practice: From Regulation to Compliance","Intellectual Property, Liability, and AI Contracts","Comparative AI Law"],
+   "Block 03: Govern, Evaluate & Audit":["Building a Governance Framework for Artificial Intelligence","Identifying and Steering AI Risks","Ethics, Responsible AI, and Building Trust","Auditing and Monitoring an AI System","The Augmented Lawyer: Advanced Uses of AI","Designing a Reliable Legal Assistant"],
+   "Block 04: Act, Steer & Transform":["Legal Agents & Agent-Based Workflows","Automating Compliance & Regulatory Monitoring","AI Providers, Technological Dependencies & Sovereignty","AI Incidents & Crisis Management","Steering an AI Governance, Risk & Compliance Program","Transforming the Legal Department & Becoming an Augmented Legal Professional"]}}}},
+ {id:"msc-online", short:"Online MSc Applied AI & DS", name:"Online Master of Science in Applied AI and Data Science", years:{
+  1:{title:"12 months, online", blocks:{
+   "Data Foundations":["Exploratory data analysis","Analysis and visualisation","Data collection via the web and APIs","Data Fundamentals at Scale"],
+   "Maths for AI":["Linear Algebra","Mathematics for machine learning","Time series","Mathematical foundations of deep learning"],
+   "Applied AI":["AI fundamentals","Machine learning algorithms","Deep learning & generative AI","Model evaluation, GenAI applications"],
+   "Engineering & Deployment":["Data engineering & cloud","Data pipelines","MLOps & deployment"],
+   "Responsible AI":["AI ethics & Green AI","Legal Issues in AI","Governance, compliance, fairness"],
+   "AI for Business":["AI Strategy","AI Deployment and Project Management","Use cases: finance, marketing, operations"]}}}},
+];
+/* Address of the real Relay app (deployed on Netlify, see the real app README).
+   Fill it in and the QR code appears in the guide. */
+const REAL_APP_URL = "";
+
+const PROG = Object.fromEntries(PROGRAMS.map(p => [p.id, p]));
+const nYears = pid => Object.keys(PROG[pid].years).length;
+const coursesOf = (pid, y) => Object.values(PROG[pid].years[y].blocks).flat();
+const isFinal = (pid, y) => y >= nYears(pid);                 // no year above in the same programme
+/* study level after the baccalaureate, used to match across programmes */
+const level = (pid, y) => pid==="pge"||pid==="bsc" ? y : pid==="msc-decc"||pid==="msc-dm" ? 3 + y : 6;
+const yearLabel = (pid, y) => pid==="pge" ? `PGE${y}` : nYears(pid)===1 ? PROG[pid].short : `${PROG[pid].short} · Year ${y}`;
+
+/* subject families: used to find "similar course" tutors in other programmes or years */
+const SUBJECTS = {
+  ml:/machine learning|\bml\b|mlops|predictive/i,
+  dl:/deep learning|neural|computer vision|natural language|cnn|llm/i,
+  genai:/generative|agent|llm|prompt|rag\b|fine-tuning|chatbot/i,
+  maths:/math|statistic|probab|algebra|optimis|calculus|time.series|causal/i,
+  prog:/python|programming|algorithm|coding|scala/i,
+  data:/database|sql|data analysis|visuali[sz]|excel|wrangling|power bi|exploratory|reporting|pre-processing/i,
+  cloud:/cloud|big data|aws|azure|gcp|hdfs|spark|pipeline|devops|deploy|integration/i,
+  ethics:/ethic|law\b|legal|regulat|compliance|gdpr|governance|ai act|rights|fair|xai|explainab|robustness|anonymi/i,
+};
+const subjectsOf = c => Object.keys(SUBJECTS).filter(k => SUBJECTS[k].test(c));
+
+const TOPIC_HINT = {"Machine Learning":"Gradient descent","Optimisation subject to constraints":"Lagrange multipliers","Mathematical models of learning":"Linear regression",
+  "The Mathematics of Deep Learning":"Backpropagation","Statistical analysis of the data":"Hypothesis tests","An Introduction to Databases":"SQL joins",
+  "Algorithms and Programming in Python":"Loops and functions","Practical Machine Learning":"Model evaluation","Advanced Programming with Python":"Classes and objects",
+  "Deep learning: methods and applications":"Backpropagation","Natural language processing":"Embeddings","Generative AI":"Prompting and RAG",
+  "Constrained optimisation":"Lagrange multipliers","Large Language Models (LLMs)":"Fine-tuning","Time-Series Analysis":"ARIMA"};
+
+/* Example tutors (fictional people) */
+const TUTORS = [
+  {id:"t1",name:"Yasmine B.",program:"pge",year:3,color:"#2f5bff",langs:["French","English"],rating:4.9,sessions:14,reply:"~20 min",reliability:95,level:"Expert",slot:"Today 18:00",formats:["chat","campus","video"],
+   strong:{"Machine Learning":{grade:"16+",topics:["Gradient descent","Regularisation","Model evaluation"]},"Optimisation subject to constraints":{grade:"14–16",topics:["Lagrange multipliers","Convexity"]}}},
+  {id:"t2",name:"Aarav S.",program:"pge",year:4,color:"#11845b",langs:["English"],rating:4.7,sessions:6,reply:"~1 h",reliability:85,level:"Trusted",slot:"Tomorrow 12:30",formats:["chat","video"],
+   strong:{"Machine Learning":{grade:"16+",topics:["Model evaluation","Decision trees"]},"The Mathematics of Deep Learning":{grade:"16+",topics:["Backpropagation","Gradients"]},"Mathematical models of learning":{grade:"16+",topics:["Linear regression","Gradient descent"]}}},
+  {id:"t3",name:"Léo M.",program:"pge",year:3,color:"#b4610a",langs:["French"],rating:null,sessions:0,reply:"~3 h",reliability:70,level:"New",slot:"Thu 17:00",formats:["chat","campus"],
+   strong:{"Machine Learning":{grade:"14–16",topics:["Gradient descent","Linear regression"]},"Advanced Programming with Python":{grade:"16+",topics:["Classes and objects","NumPy"]}}},
+  {id:"t4",name:"Chloé R.",program:"pge",year:5,color:"#8a3ffc",langs:["French","English"],rating:4.8,sessions:11,reply:"~30 min",reliability:92,level:"Expert",slot:"Today 19:30",formats:["chat","campus","video","group"],
+   strong:{"Deep learning: methods and applications":{grade:"16+",topics:["Transformers","Backpropagation"]},"Natural language processing":{grade:"16+",topics:["Embeddings","Tokenisation"]},"Practical Machine Learning":{grade:"16+",topics:["Model evaluation","Feature engineering"]}}},
+  {id:"t5",name:"Omar K.",program:"pge",year:3,color:"#c23b3b",langs:["English","Arabic"],rating:4.5,sessions:4,reply:"~2 h",reliability:80,level:"Trusted",slot:"Tomorrow 10:00",formats:["chat","video"],
+   strong:{"Optimisation subject to constraints":{grade:"16+",topics:["Lagrange multipliers","Linear programming"]},"Statistical analysis of the data":{grade:"16+",topics:["Hypothesis tests","Distributions"]},"An Introduction to Databases":{grade:"16+",topics:["SQL joins","Normalisation"]}}},
+  {id:"t6",name:"Nina P.",program:"bsc",year:3,color:"#0f766e",langs:["English","Spanish"],rating:4.6,sessions:5,reply:"~1 h",reliability:88,level:"Trusted",slot:"Wed 16:00",formats:["chat","campus"],
+   strong:{"Machine Learning":{grade:"16+",topics:["Gradient descent","Classification"]},"Constrained optimisation":{grade:"16+",topics:["Lagrange multipliers"]},"Advanced Python Programming":{grade:"16+",topics:["Classes and objects"]}}},
+  {id:"t7",name:"Karim D.",program:"msc-decc",year:2,color:"#475569",langs:["French","English","Arabic"],rating:4.8,sessions:9,reply:"~40 min",reliability:90,level:"Trusted",slot:"Fri 12:00",formats:["chat","video"],
+   strong:{"Machine Learning":{grade:"14–16",topics:["Model evaluation"]},"Cloud Computing on AWS":{grade:"16+",topics:["EC2 and S3","Lambda"]},"Advanced Relational Databases":{grade:"16+",topics:["SQL joins","Indexes"]}}},
+  {id:"t8",name:"Sofia G.",program:"msc-gen",year:1,color:"#be185d",langs:["English","Spanish"],rating:4.9,sessions:7,reply:"~30 min",reliability:93,level:"Trusted",slot:"Today 20:00",formats:["chat","video"],
+   strong:{"Large Language Models (LLMs)":{grade:"16+",topics:["Fine-tuning","RAG"]},"Agentic AI":{grade:"16+",topics:["Tool use","Agent workflows"]}}},
+];
+const FORMATS = [["chat","Quick chat"],["campus","On campus"],["video","Video link"],["group","Group, before exam"]];
+const BLOCKERS = ["The maths","The code","Following lectures","Exam prep","I fell behind"];
+
+/* ======================= matching ======================= */
+function candidates(course, u){
+  const want = subjectsOf(course), uLvl = level(u.program, u.year), noAbove = isFinal(u.program, u.year);
+  const out = [];
+  for(const t of TUTORS){
+    let best = null;
+    for(const [sc, info] of Object.entries(t.strong)){
+      const exact = t.program===u.program && sc===course && t.year > u.year;
+      const shared = subjectsOf(sc).filter(x => want.includes(x));
+      const tLvl = level(t.program, t.year);
+      const similar = !exact && shared.length && (tLvl > uLvl || (noAbove && tLvl >= uLvl)) && !(t.program===u.program && t.year<=u.year);
+      if(exact || similar){
+        const cand = {sc, info, exact};
+        if(!best || (exact && !best.exact)) best = cand;
+      }
+    }
+    if(best) out.push({t, ...best});
+  }
+  return out;
+}
+function matchTutors(){
+  const r = S.req, u = S.user;
+  S.matches = candidates(r.course, u).map(c => {
+    const grade = c.info.grade === "16+" ? 30 : 22;
+    const relation = c.exact ? 25 : 12;
+    const q = r.topic.trim().toLowerCase();
+    const topic = c.info.topics.some(x => x.toLowerCase() === q) ? 15 : c.info.topics.some(x => q && x.toLowerCase().includes(q.split(" ")[0])) ? 8 : 3;
+    const rating = c.t.rating ? Math.round(c.t.rating / 5 * 15) : 8;
+    const lang = c.t.langs.some(l => u.langs.includes(l)) ? 10 : 0;
+    const rel = Math.round(c.t.reliability / 20);
+    const fmtOk = c.t.formats.includes(r.format);
+    return {...c, parts:{grade,relation,topic,rating,lang,rel}, fmtOk, total: grade+relation+topic+rating+lang+rel-(fmtOk?0:10)};
+  }).sort((a,b) => b.total - a.total).slice(0,3);
+}
+
+/* ======================= state ======================= */
+const fresh = () => ({
+  screen:"home", tab:"home",
+  user:{name:"Alex", email:"", program:"pge", year:2, langs:["French","English"],
+        hard:[{course:"Machine Learning",topic:"Gradient descent",lost:4},{course:"Optimisation subject to constraints",topic:"Lagrange multipliers",lost:3}],
+        strong:[{course:"Algorithms and Programming in Python",grade:"16+"}]},
+  pick:{hard:{"Machine Learning":4,"Optimisation subject to constraints":3}, strong:{"Algorithms and Programming in Python":"16+"}},
+  req:{course:"Machine Learning",topic:"Gradient descent",blockers:["The maths"],format:"chat",urgency:"today"},
+  matches:[], chosen:null, chat:[], booked:false,
+  rate:{use:null,solved:null,comment:""},
+  points:40, sessionsGiven:2, hoursHelped:3.5,
+  incoming:[{id:"r1",name:"Sami T.",program:"pge",year:1,course:"Algorithms and Programming in Python",topic:"Loops and functions",lost:4,format:"Quick chat",when:"12 min ago"},
+            {id:"r2",name:"Maya L.",program:"pge",year:1,course:"Algorithms and Programming in Python",topic:"Recursion",lost:3,format:"On campus",when:"1 h ago"}],
+  accepted:[],
+  convos:{"c-t5":{id:"c-t5",kind:"learner",tutorId:"t5",name:"Omar K.",color:"#c23b3b",label:"PGE3",course:"Optimisation subject to constraints",
+     msgs:[{who:"sys",text:"Omar K. accepted your request"},{who:"me",text:"Hi Omar, I don't get Lagrange multipliers at all."},{who:"them",text:"No worries, it clicked for me with a drawing. Let's do 30 min on campus?"},{who:"me",text:"Booked, thanks!"},{who:"sys",text:"Session done · you rated it 9/10"},{who:"them",text:"Good luck for the exam! Ping me if the KKT part is unclear."}],
+     booked:true, done:true, slot:"Last Tuesday", unread:1, updated:1}},
+  activeConvo:null
+});
+let S = window.claude?.hot?.data && window.claude.hot.data.convos ? window.claude.hot.data : fresh();
+window.claude?.hot?.snapshot?.(() => S);
+
+/* ======================= guide content ======================= */
+const STEPS = [
+  {id:"login",label:"Sign in with school email",stat:"0",statL:"passwords",
+   text:"Only aivancity emails get in, through a one-time login link. Blackboard sign-in can replace it once the school approves the integration."},
+  {id:"onboard",label:"Programme, year and courses",stat:"10",statL:"programmes, official course lists",
+   text:"Grande École Programme, BSc and 8 MSc programmes, with each year's courses as published on aivancity.ai. Students tap the courses they find hard, and mark courses from previous years they did well in: give one, get one."},
+  {id:"home",label:"Home: course weather",stat:"73%",statL:"rate themselves 3/5 or more lost",
+   text:"Each hard course shows its lost-o-meter, so the most lost students are matched first."},
+  {id:"help",label:"Ask for help",stat:"69%",statL:"want a quick chat",
+   text:"Pick the course, the topic and what blocks you. Code, maths and following lectures are the top blockers (33% each)."},
+  {id:"results",label:"Get matched",stat:"80%",statL:"don't know who to ask",
+   text:"First choice: a student one year above in the same programme who did well in the same course. Final-year and one-year MSc students get students who did well in a similar course in another programme."},
+  {id:"chat",label:"Messages: chat and book",stat:"69%",statL:"want a quick chat",
+   text:"A Messages tab keeps every conversation: with your tutors and with the students you help. Chat first, then book a slot on campus or a Teams / Meet link. No video to build."},
+  {id:"rate",label:"Rate the session",stat:"4",statL:"questions after each session",
+   text:"Usefulness, solved or not, and a comment. Ratings build trust levels and measure impact: time to help and share of problems solved."},
+  {id:"tutor",label:"Tutor side",stat:"90%",statL:"of PGE2–PGE4 open to tutoring",
+   text:"Requests from the year below, one-tap accept, and rewards that turn a Maybe into a Yes: points, trust levels, a certificate for CV and LinkedIn."},
+  {id:"school",label:"School view",stat:"9 vs 1",statL:"ML/DL: struggling vs willing tutors",
+   text:"Demand vs tutor supply per subject shows where to recruit tutors before exams."},
+];
+const STEP_OF = {login:"login",onboard:"onboard",home:"home",help:"help",finding:"results",results:"results",waiting:"chat",chat:"chat",messages:"chat",rate:"rate",thanks:"rate",tutor:"tutor",profile:"tutor",school:"school"};
+
+/* ======================= helpers ======================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const initials = n => n.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const meter = v => `<div class="meter" aria-label="Lost-o-meter ${v} out of 5">${[1,2,3,4,5].map(i=>`<span class="${i<=v?"f"+v:""}"></span>`).join("")}</div>`;
+const lostWord = v => ["","A bit cloudy","Unsure","Hard","Very lost","Completely lost"][v];
+const LOGO = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="18" height="4" rx="2" transform="rotate(-30 12 12)" fill="#2f5bff"/><circle cx="6" cy="17" r="2.2" fill="#fff"/><circle cx="18" cy="7" r="2.2" fill="#fff"/></svg>';
+const icon = {
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
+  help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
+  tutor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 11.5V16c3 2 7 2 10 0v-4.5"/></svg>',
+  chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+  profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+};
+function go(screen, tab){ S.screen = screen; if(tab) S.tab = tab; render(true); }
+const myLabel = () => yearLabel(S.user.program, S.user.year);
+let CLOCK = 10;
+const convoList = () => Object.values(S.convos).sort((a,b)=>b.updated-a.updated);
+const unreadCount = () => Object.values(S.convos).reduce((n,c)=>n+(c.unread?1:0),0);
+function openConvo(id){ S.activeConvo=id; S.convos[id].unread=0; go("chat","messages"); }
+function pushMsg(c, m){ c.msgs.push(m); c.updated = ++CLOCK; }
+
+/* ======================= screens ======================= */
+const V = {};
+
+V.login = () => `
+  <div style="margin-top:30px" class="row"><div class="brand-mark">${LOGO}</div><span class="brand-name">Relay</span></div>
+  <h2 class="hello" style="font-size:32px">Stuck on a course?<br>Someone one year above aced it.</h2>
+  <p class="muted" style="margin:0">Sign in with your aivancity email. We send you a one-time link, no password.</p>
+  <form id="loginForm" class="card" novalidate>
+    <label class="f" for="email">School email
+      <input class="t" id="email" type="email" value="${esc(S.user.email)}" placeholder="firstname.lastname@aivancity.education" autocomplete="email">
+    </label>
+    <div id="loginErr" class="xs" style="color:var(--bad);display:none">Use your aivancity school email (it must contain "@aivancity").</div>
+    <button class="btn" type="submit">Send me a login link</button>
+  </form>
+  <p class="note">Demo: the link is simulated and opens the app directly.</p>`;
+
+V.onboard = () => {
+  const u = S.user, P = S.pick, prog = PROG[u.program], cur = prog.years[u.year];
+  const hardList = Object.keys(P.hard), strongList = Object.keys(P.strong);
+  const prevYears = Array.from({length:u.year-1},(_,i)=>u.year-1-i);
+  return `
+  <div><div class="sec">Welcome ${esc(u.name)} · about 1 minute</div></div>
+  <h2 class="h2">Your programme</h2>
+  <label class="f" for="progSel">Programme
+    <select class="t" id="progSel">${PROGRAMS.map(p=>`<option value="${p.id}" ${p.id===u.program?"selected":""}>${esc(p.name)}</option>`).join("")}</select>
+  </label>
+  ${nYears(u.program)>1?`<div class="f"><span style="font-weight:600;font-size:13px">Your year</span>
+    <div class="row wrap" role="group" aria-label="Your year">${Object.keys(prog.years).map(n=>+n).map(n=>`<button type="button" class="chip ${u.year===n?"on":""}" data-year="${n}">${u.program==="pge"?"PGE"+n:"Year "+n}${isFinal(u.program,n)?" · final":""}</button>`).join("")}</div></div>`
+  :`<div class="xs muted">One-year programme (${esc(cur.title)}).</div>`}
+  ${isFinal(u.program,u.year)?`<div class="card small" style="background:var(--warn-soft);border-color:transparent">${nYears(u.program)>1?"Final year":"One-year programme"}: there is no year above you in this programme. Relay matches you with students who did well in a similar course in another programme.</div>`:""}
+
+  <div class="card" style="gap:12px">
+    <div class="row between"><b>${esc(myLabel())}${nYears(u.program)>1?" · "+esc(cur.title):""}</b><span class="pill grey">${coursesOf(u.program,u.year).length} courses</span></div>
+    <span class="xs muted" style="margin-top:-6px">Tap the courses you find hard.</span>
+    ${Object.entries(cur.blocks).map(([blk, list])=>`
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <span class="xs muted" style="font-weight:700;text-transform:uppercase;letter-spacing:.06em">${esc(blk)}</span>
+        <div class="row wrap" style="gap:6px">${list.map(c=>`<button type="button" class="chip wrapchip ${P.hard[c]?"on":""}" data-hard="${esc(c)}" aria-pressed="${!!P.hard[c]}">${esc(c)}</button>`).join("")}</div>
+      </div>`).join("")}
+  </div>
+
+  ${hardList.length?`<div class="sec">How lost are you?</div>${hardList.map(c=>`
+    <div class="card" style="padding:12px;gap:8px">
+      <b class="small">${esc(c)}</b>
+      <div class="lostpick" role="group" aria-label="How lost in ${esc(c)}">${[1,2,3,4,5].map(v=>`<button type="button" class="${P.hard[c]===v?"on":""}" data-lostc="${esc(c)}|${v}">${v}<small>${v===1?"cloudy":v===5?"lost":""}&nbsp;</small></button>`).join("")}</div>
+    </div>`).join("")}`:""}
+
+  ${prevYears.length?`
+  <div class="sec">Previous years · courses you did well in</div>
+  <div class="small muted" style="margin-top:-6px">You can tutor these for students in a lower year.</div>
+  ${prevYears.map(py=>`
+    <details class="card" style="padding:12px" ${py===u.year-1?"open":""}>
+      <summary style="cursor:pointer;font-weight:700;font-size:14px">${esc(yearLabel(u.program,py))} · ${esc(prog.years[py].title)}</summary>
+      <div class="row wrap" style="gap:6px;margin-top:10px">${coursesOf(u.program,py).map(c=>`<button type="button" class="chip wrapchip ${P.strong[c]?"on":""}" data-strongc="${esc(c)}" aria-pressed="${!!P.strong[c]}">${esc(c)}</button>`).join("")}</div>
+    </details>`).join("")}
+  ${strongList.length?strongList.map(c=>`
+    <div class="row between small" style="gap:8px"><span>${esc(c)}</span>
+      <span class="row" style="gap:6px;flex:none">${["14–16","16+"].map(g=>`<button type="button" class="chip ${P.strong[c]===g?"on":""}" data-gradec="${esc(c)}|${g}" style="padding:4px 10px">${g}</button>`).join("")}</span></div>`).join("")+
+    `<span class="xs muted">Grade band is self-declared; only the band is shown to others.</span>`:""}`:""}
+
+  <label class="f">Languages you can be helped in
+    <div class="row wrap">${["French","English","Arabic","Spanish"].map(l=>`<button type="button" class="chip ${u.langs.includes(l)?"on":""}" data-lang="${l}">${l}</button>`).join("")}</div>
+  </label>
+  <button class="btn" data-act="finishOnboard" ${hardList.length?"":"disabled"}>Save and continue</button>
+  ${hardList.length?"":`<p class="note" style="margin-top:-8px">Pick at least one hard course to continue.</p>`}
+  <p class="note">Course lists from the Curriculum page of each programme on aivancity.ai. Your year moves up automatically each September.</p>`;
+};
+
+V.home = () => {
+  const u = S.user, final = isFinal(u.program, u.year);
+  const nb = convoList().find(c=>c.kind==="learner"&&c.booked&&!c.done);
+  const next = nb ? `<button class="card" style="text-align:left;cursor:pointer;border-color:var(--good)" data-convo="${nb.id}"><div class="row between"><span class="pill good">Session booked</span><span class="xs muted">${esc(nb.slot)}</span></div><div class="small">${esc(nb.course)} with <b>${esc(nb.name)}</b> · open chat</div></button>` : "";
+  return `
+  <div class="top">
+    <div><div class="muted small">${esc(myLabel())} · Learner and tutor</div><h2 class="hello">Hi ${esc(u.name)}</h2></div>
+    <div class="avatar" style="background:var(--ink)">${initials(u.name)}</div>
+  </div>
+  <div class="card hero">
+    <div class="xs muted" style="text-transform:uppercase;letter-spacing:.08em;font-weight:700">Stuck right now?</div>
+    <div style="font-family:var(--display);font-weight:700;font-size:20px;line-height:1.2">${final
+      ? "You're in your programme's final year. Get matched with a student who did well in a similar course."
+      : `Get matched with a ${esc(yearLabel(u.program,u.year+1))} student who did well in your course.`}</div>
+    <button class="btn" data-go="help" data-tab="help">Get help</button>
+  </div>
+  ${next}
+  <div class="sec">Your course weather</div>
+  ${u.hard.map(h=>{const n=candidates(h.course,u).length; return `
+    <div class="card">
+      <div class="row between" style="align-items:flex-start"><b>${esc(h.course)}</b><span class="pill ${h.lost>=4?"warn":"grey"}">${lostWord(h.lost)} · ${h.lost}/5</span></div>
+      ${meter(h.lost)}
+      <div class="row between"><span class="xs muted">Hardest part: ${esc(h.topic)}</span><span class="xs" style="color:${n?"var(--baton)":"var(--warn)"};font-weight:700;white-space:nowrap">${n?n+" tutor"+(n>1?"s":"")+" available":"No tutor yet"}</span></div>
+    </div>`;}).join("")}
+  <div class="sec">You can help the year below</div>
+  ${u.strong.length && u.year>1 ? `<button class="card" style="text-align:left;cursor:pointer" data-go="tutor" data-tab="tutor">
+    <div class="row between"><b>${S.incoming.length} request${S.incoming.length!==1?"s":""} from ${esc(yearLabel(u.program,u.year-1))} students</b><span class="pill blue">${S.points} pts</span></div>
+    <span class="xs muted">You did well in ${esc(u.strong[0].course)}. Accept a request to earn points and reach Trusted level.</span>
+  </button>` : `<div class="card small muted">Once you've finished a course with a good grade, you can tutor students in the year below.</div>`}`;
+};
+
+V.help = () => {
+  const r = S.req, u = S.user;
+  const opts = [...u.hard.map(h=>h.course), ...coursesOf(u.program,u.year).filter(c=>!u.hard.some(h=>h.course===c))];
+  return `
+  <button class="back" data-go="home" data-tab="home">← Home</button>
+  <h2 class="h2">What do you need help with?</h2>
+  <label class="f" for="hCourse">Course (${esc(myLabel())})
+    <select class="t" id="hCourse">${opts.map(c=>`<option ${c===r.course?"selected":""}>${esc(c)}</option>`).join("")}</select>
+  </label>
+  <label class="f" for="hTopic">Topic or exercise
+    <input class="t" id="hTopic" value="${esc(r.topic)}" placeholder="e.g. gradient descent, exercise 3">
+  </label>
+  <div class="f"><span style="font-weight:600;font-size:13px">What blocks you?</span>
+    <div class="row wrap">${BLOCKERS.map(b=>`<button type="button" class="chip ${r.blockers.includes(b)?"on":""}" data-block="${b}">${b}</button>`).join("")}</div>
+  </div>
+  <div class="f"><span style="font-weight:600;font-size:13px">How?</span>
+    <div class="row wrap">${FORMATS.map(([k,l])=>`<button type="button" class="chip ${r.format===k?"on":""}" data-format="${k}">${l}</button>`).join("")}</div>
+  </div>
+  <div class="f"><span style="font-weight:600;font-size:13px">When?</span>
+    <div class="row wrap">${[["today","Today"],["week","This week"],["exam","Before the exam"]].map(([k,l])=>`<button type="button" class="chip ${r.urgency===k?"on":""}" data-urg="${k}">${l}</button>`).join("")}</div>
+  </div>
+  <button class="btn" data-act="find">Find my tutor</button>`;
+};
+
+V.finding = () => `
+  <div class="spinner" role="status" aria-label="Finding tutors"></div>
+  <div class="center"><b>Finding tutors</b><div class="small muted">who did well in ${esc(S.req.course)} or a similar course…</div></div>
+  <div class="card small muted">Checking: same course one year above · grade · topic · ratings · language · reply speed</div>`;
+
+V.results = () => {
+  const ms = S.matches;
+  if(!ms.length) return `<button class="back" data-go="help">← Edit request</button><h2 class="h2">No tutor yet for this course</h2><p class="muted">We'll notify you as soon as a student who did well in ${esc(S.req.course)} or a similar course joins. The school team sees this gap too.</p>`;
+  const labels = {grade:"Grade",relation:"Same course",topic:"Topic match",rating:"Ratings",lang:"Language",rel:"Reply speed"};
+  const max = {grade:30,relation:25,topic:15,rating:15,lang:10,rel:5};
+  return `
+  <button class="back" data-go="help">← Edit request</button>
+  <div><h2 class="h2">${ms.length} tutor${ms.length>1?"s":""} for ${esc(S.req.course)}</h2><div class="small muted">Ranked for "${esc(S.req.topic)}"</div></div>
+  ${ms.map((m,i)=>`
+    <div class="match ${i===0?"best":""}">
+      <div class="row between" style="align-items:flex-start">
+        <div class="row" style="align-items:flex-start"><div class="avatar" style="background:${m.t.color}">${initials(m.t.name)}</div>
+          <div><b>${esc(m.t.name)}</b> <span class="muted small">${esc(yearLabel(m.t.program,m.t.year))}</span><div class="xs muted">${m.t.rating?`★ ${m.t.rating} · ${m.t.sessions} sessions`:"New tutor · mini-challenge approved"} · replies ${m.t.reply}</div></div></div>
+        <div class="center"><div class="score">${m.total}</div><div class="xs muted">match</div></div>
+      </div>
+      <div class="tags">
+        ${m.exact?`<span class="pill blue">Got ${m.info.grade} in this course</span>`:`<span class="pill warn" style="white-space:normal">Similar course: ${esc(m.sc)} · ${m.info.grade}</span>`}
+        <span class="pill ${m.t.level==="Expert"?"good":m.t.level==="Trusted"?"blue":"grey"}">${m.t.level}</span>
+        ${m.t.langs.map(l=>`<span class="pill grey">${l}</span>`).join("")}
+      </div>
+      ${i===0?`<div class="why" aria-label="Why this match">${Object.keys(labels).map(k=>`<span class="muted">${labels[k]}</span><div class="bar"><i style="width:${m.parts[k]/max[k]*100}%"></i></div><span class="v">${m.parts[k]}/${max[k]}</span>`).join("")}</div>`:""}
+      <div class="xs muted">Strong topics: ${m.info.topics.map(esc).join(", ")}${m.fmtOk?"":" · doesn't offer this format"}</div>
+      <button class="btn ${i===0?"":"sec2"}" data-pick="${m.t.id}">Ask ${esc(m.t.name.split(" ")[0])} · next slot ${m.t.slot}</button>
+    </div>`).join("")}`;
+};
+
+V.waiting = () => `
+  <div class="spinner" role="status" aria-label="Waiting for answer"></div>
+  <div class="center"><b>Request sent to ${esc(S.chosen.t.name)}</b><div class="small muted">Tutors usually answer within ${S.chosen.t.reply.replace("~","")}. If there's no answer in 12 h, we suggest the next tutor.</div></div>`;
+
+V.messages = () => {
+  const list = convoList();
+  return `
+  <h2 class="h2">Messages</h2>
+  ${list.length?list.map(c=>{const last=[...c.msgs].reverse().find(m=>m.who!=="sys")||c.msgs[c.msgs.length-1]; return `
+    <button class="convo ${c.unread?"unread":""}" data-convo="${c.id}">
+      <div class="avatar" style="background:${c.color}">${initials(c.name)}</div>
+      <div class="body">
+        <div class="row between" style="gap:6px"><b>${esc(c.name)}</b><span class="pill ${c.kind==="learner"?"blue":"good"}">${c.kind==="learner"?"Your tutor":"You tutor"}</span></div>
+        <span class="xs muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.label)} · ${esc(c.course)}</span>
+        <span class="last">${last.who==="me"?"You: ":""}${esc(last.text)}</span>
+      </div>
+      ${c.unread?'<span class="dotnew" aria-label="Unread"></span>':""}
+    </button>`;}).join(""):`<div class="card small muted">No conversation yet. Ask for help or accept a request: the chat opens here.</div>`}
+  <button class="btn sec2" data-go="help" data-tab="help">Ask for help in a new course</button>`;
+};
+
+V.chat = () => {
+  const c = S.convos[S.activeConvo];
+  if(!c) return V.messages();
+  const learner = c.kind==="learner";
+  return `
+  <div class="row between"><button class="back" data-tabgo="messages">← Messages</button><span class="pill ${learner?"blue":"good"}">${learner?"Your tutor":"You tutor"}</span></div>
+  <div class="row"><div class="avatar" style="background:${c.color}">${initials(c.name)}</div><div><b>${esc(c.name)}</b> <span class="muted small">${esc(c.label)}</span><div class="xs muted">${esc(c.sub||c.course)}</div></div></div>
+  <div class="chat" id="chatlog">${c.msgs.map(m=>`<div class="msg ${m.who}">${esc(m.text)}</div>`).join("")}</div>
+  ${c.done?"":c.booked?`
+    <div class="booking"><div class="row between"><b>${esc(c.slot)} · 30 min</b><span class="pill good">Booked</span></div>
+      <div class="small">${S.req.format==="campus"?"On campus, library":"Teams link sent by email"}</div>
+      ${learner?`<button class="btn" data-act="sessionDone">The session happened: rate it</button>`:`<span class="xs muted">${esc(c.name.split(" ")[0])} will rate the session afterwards. +20 pts for you.</span>`}</div>`
+  :`
+    <div class="booking"><div class="small"><b>${learner?esc(c.name.split(" ")[0])+" suggests:":"Suggest a slot:"}</b> ${esc(c.slot)} · 30 min</div>
+      <button class="btn" data-act="book">${learner?"Book this slot":"Send this slot"}</button></div>`}
+  <form class="composer" id="composer"><input class="t" id="msg" placeholder="Write a message…" aria-label="Message" autocomplete="off"><button class="btn" style="width:auto" type="submit">Send</button></form>`;
+};
+
+V.rate = () => {
+  const r = S.rate;
+  return `
+  <h2 class="h2">How was your session with ${esc(S.chosen.t.name.split(" ")[0])}?</h2>
+  <div class="f"><span style="font-weight:600;font-size:13px">How useful was it? (1–10)</span>
+    <div class="ten" role="group" aria-label="Usefulness">${Array.from({length:10},(_,i)=>i+1).map(v=>`<button type="button" class="${r.use===v?"on":""}" data-use="${v}">${v}</button>`).join("")}</div>
+  </div>
+  <div class="f"><span style="font-weight:600;font-size:13px">Did it solve your problem?</span>
+    <div class="row wrap">${["Completely","Partly","Not at all"].map(v=>`<button type="button" class="chip ${r.solved===v?"on":""}" data-solved="${v}">${v}</button>`).join("")}</div>
+  </div>
+  <label class="f" for="cmt">Comment for ${esc(S.chosen.t.name.split(" ")[0])} (optional)
+    <textarea class="t" id="cmt" placeholder="What helped most?">${esc(r.comment)}</textarea>
+  </label>
+  <div class="card small muted">Measured automatically: matched in <b style="color:var(--ink)">18 min</b> · session <b style="color:var(--ink)">30 min</b></div>
+  <button class="btn" data-act="submitRate" ${r.use&&r.solved?"":"disabled"}>Send rating</button>`;
+};
+
+V.thanks = () => `
+  <div class="center" style="margin-top:30px">
+    <div style="font-family:var(--display);font-weight:800;font-size:56px;color:var(--baton);line-height:1">${S.rate.use}/10</div>
+    <h2 class="h2" style="margin-top:10px">Thanks, rating sent</h2>
+    <p class="muted small">${esc(S.chosen.t.name)} gets closer to the next trust level. Your feedback also tells the school which courses need more help.</p>
+  </div>
+  ${S.incoming.length?`<div class="card"><div class="row between"><b>Your turn to pass it on?</b><span class="pill blue">+20 pts</span></div><span class="small muted">${S.incoming.length} student${S.incoming.length>1?"s":""} from the year below need help in a course you did well in.</span><button class="btn sec2" data-go="tutor" data-tab="tutor">See requests</button></div>`:""}
+  <button class="btn" data-go="home" data-tab="home">Back to home</button>`;
+
+V.tutor = () => {
+  const toTrusted = Math.min(S.sessionsGiven,3);
+  return `
+  <h2 class="h2">Tutoring</h2>
+  <div class="statgrid">
+    <div class="stat"><b>${S.points}</b><span class="xs muted">points</span></div>
+    <div class="stat"><b>${S.sessionsGiven}</b><span class="xs muted">sessions given</span></div>
+    <div class="stat"><b>${S.hoursHelped}</b><span class="xs muted">hours helped</span></div>
+  </div>
+  <div class="card">
+    <div class="row between"><b>${S.sessionsGiven>=3?"Trusted tutor reached":"Next level: Trusted"}</b><span class="xs muted">${toTrusted}/3 sessions</span></div>
+    <div class="progress"><i style="width:${toTrusted/3*100}%"></i></div>
+    <span class="xs muted">Trusted: approve new tutors. Expert (10 sessions, ★4.5+): certificate for your CV and LinkedIn.</span>
+  </div>
+  <div class="sec">Requests from the year below</div>
+  ${S.incoming.length?S.incoming.map(r=>`
+    <div class="card">
+      <div class="row between"><div class="row"><div class="avatar" style="background:#565a63">${initials(r.name)}</div><div><b>${esc(r.name)}</b> <span class="muted small">${esc(yearLabel(r.program,r.year))}</span><div class="xs muted">${r.when} · ${r.format}</div></div></div><span class="pill ${r.lost>=4?"warn":"grey"}">${r.lost}/5 lost</span></div>
+      <div class="small">${esc(r.course)}: <b>${esc(r.topic)}</b></div>
+      <div class="row"><button class="btn" data-accept="${r.id}">Accept</button><button class="btn sec2" data-decline="${r.id}">Not now</button></div>
+    </div>`).join(""):`<div class="card small muted">No open requests. We'll notify you when a student from the year below needs help in one of your strong courses.</div>`}
+  ${S.accepted.map(a=>`<div class="card" style="border-color:var(--good)"><div class="row between"><b>${esc(a.name)} · ${esc(a.topic)}</b><span class="pill good">Accepted</span></div><span class="xs muted">+20 pts after the session</span><button class="btn sec2" data-openchat="c-${a.id}">Open chat</button></div>`).join("")}`;
+};
+
+V.profile = () => {
+  const u = S.user;
+  return `
+  <div class="row"><div class="avatar" style="background:var(--ink);width:56px;height:56px;font-size:18px">${initials(u.name)}</div><div><h2 class="h2">${esc(u.name)}</h2><div class="small muted">${esc(PROG[u.program].name)} · ${esc(myLabel())}${u.email?" · "+esc(u.email):""}</div></div></div>
+  <div class="card"><b class="small">Struggling with</b>${u.hard.map(h=>`<div class="row between small"><span>${esc(h.course)}</span><span class="muted">${h.lost}/5</span></div>`).join("")}</div>
+  <div class="card"><b class="small">Can tutor (grade band shown to others)</b>${u.strong.length?u.strong.map(s=>`<div class="row between small"><span>${esc(s.course)}</span><span class="pill blue">${s.grade}</span></div>`).join(""):`<span class="small muted">No strong course yet.</span>`}</div>
+  <div class="card"><b class="small">Languages</b><div class="row wrap">${u.langs.map(l=>`<span class="pill grey">${l}</span>`).join("")}</div></div>
+  <div class="card small muted">Your exact grades are never shown, only the band (for example "16+"). You can delete your account and data at any time.</div>
+  <button class="btn sec2" data-act="editProfile">Change programme or courses</button>
+  <button class="btn sec2" data-go="school">Open school view (admin)</button>
+  <button class="btn light" style="border:1px solid var(--line)" data-act="logout">Sign out</button>`;
+};
+
+V.school = () => {
+  const rows = [["Machine learning",5,1],["Deep learning / NLP",4,0],["Databases / data",2,2],["Maths / statistics",2,1],["Programming",0,2]];
+  const max = 5;
+  return `
+  <button class="back" data-go="profile" data-tab="profile">← Profile</button>
+  <h2 class="h2">School view</h2>
+  <div class="small muted">Demand vs willing tutors by subject. Seeded with the survey answers (15 students, Nov 2026).</div>
+  <div class="statgrid">
+    <div class="stat"><b>15</b><span class="xs muted">students</span></div>
+    <div class="stat"><b>9</b><span class="xs muted">open to tutor</span></div>
+    <div class="stat"><b>3</b><span class="xs muted">signed up</span></div>
+  </div>
+  <div class="card">
+    <div class="legend"><span><i style="background:var(--baton)"></i>Struggling</span><span><i style="background:#f08a4b"></i>Willing tutors</span></div>
+    <div class="ddemand">${rows.map(([n,d,s])=>`<span>${n}</span><div class="bars"><div class="row" style="gap:6px"><div class="b d" style="width:${d/max*80}%;min-width:${d?4:0}px"></div><span class="xs muted">${d}</span></div><div class="row" style="gap:6px"><div class="b s" style="width:${s/max*80}%;min-width:${s?4:0}px"></div><span class="xs muted">${s}</span></div></div>`).join("")}</div>
+  </div>
+  <div class="card" style="border-color:var(--warn)"><div class="row between"><b>Biggest gap: ML and Deep learning</b><span class="pill warn">Recruit</span></div><span class="small muted">9 students struggling, 1 willing tutor. Invite PGE4, PGE5 and MSc students who did well in these courses before exams.</span></div>`;
+};
+
+/* ======================= render ======================= */
+function render(animate){
+  const app = $("#app");
+  app.innerHTML = V[S.screen]();
+  app.classList.remove("anim"); if(animate){ void app.offsetWidth; app.classList.add("anim"); }
+  app.scrollTop = S.screen==="chat" ? app.scrollHeight : (animate ? 0 : app.scrollTop);
+  const hideTabs = ["login","onboard","finding","waiting"].includes(S.screen);
+  $("#tabbar").style.display = hideTabs ? "none" : "grid";
+  const un = unreadCount();
+  $("#tabbar").innerHTML = [["home","Home"],["help","Get help"],["messages","Messages"],["tutor","Tutoring"],["profile","Profile"]]
+    .map(([k,l])=>`<button class="${S.tab===k?"on":""}" data-tabgo="${k}" ${S.tab===k?'aria-current="page"':""} aria-label="${l}${k==="messages"&&un?`, ${un} unread`:""}"><span class="tabicon">${icon[k==="messages"?"chat":k]}${k==="messages"&&un?`<span class="badge">${un}</span>`:""}</span><span>${l}</span></button>`).join("");
+  renderGuide();
+}
+function renderGuide(){
+  const cur = STEP_OF[S.screen];
+  const idx = STEPS.findIndex(s=>s.id===cur);
+  $("#track").innerHTML = STEPS.map((s,i)=>`<li><button class="${i===idx?"on":i<idx?"done":""}" data-step="${s.id}" ${i===idx?'aria-current="step"':""}><span class="dot">${i+1}</span><span class="lbl">${s.label}</span></button></li>`).join("");
+  const s = STEPS[idx];
+  $("#evidence").innerHTML = `<span class="k">Why this screen · survey evidence</span><div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap"><span class="ev-stat">${s.stat}</span><span class="ev-stat-l">${s.statL}</span></div><p>${s.text}</p>`;
+}
+function keepScroll(fn){ const a=$("#app"), y=a.scrollTop; fn(); render(false); a.scrollTop=y; }
+
+/* ======================= events ======================= */
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const d = b.dataset;
+  if(d.tabgo) return go(d.tabgo, d.tabgo);
+  if(d.convo) return openConvo(d.convo);
+  if(d.openchat) return openConvo(d.openchat);
+  if(d.step) return jump(d.step);
+  if(d.go) return go(d.go, d.tab);
+  if(d.year) return keepScroll(()=>{ const n=+d.year; if(n!==S.user.year){ S.user.year=n; S.pick={hard:{},strong:{}}; } });
+  if(d.hard) return keepScroll(()=>{ const P=S.pick.hard; P[d.hard]?delete P[d.hard]:P[d.hard]=3; });
+  if(d.lostc) return keepScroll(()=>{ const [c,v]=d.lostc.split("|"); S.pick.hard[c]=+v; });
+  if(d.strongc) return keepScroll(()=>{ const P=S.pick.strong; P[d.strongc]?delete P[d.strongc]:P[d.strongc]="16+"; });
+  if(d.gradec) return keepScroll(()=>{ const [c,g]=d.gradec.split("|"); S.pick.strong[c]=g; });
+  if(d.lang) return keepScroll(()=>{ const L=S.user.langs; L.includes(d.lang)?L.splice(L.indexOf(d.lang),1):L.push(d.lang); });
+  if(d.block) return keepScroll(()=>{ readHelp(); const B=S.req.blockers; B.includes(d.block)?B.splice(B.indexOf(d.block),1):B.push(d.block); });
+  if(d.format) return keepScroll(()=>{ readHelp(); S.req.format = d.format; });
+  if(d.urg) return keepScroll(()=>{ readHelp(); S.req.urgency = d.urg; });
+  if(d.pick){ S.chosen = S.matches.find(m=>m.t.id===d.pick); go("waiting");
+    return setTimeout(()=>{ if(S.screen!=="waiting")return; startLearnerConvo(S.chosen); openConvo("c-"+S.chosen.t.id); }, 1600); }
+  if(d.use) return keepScroll(()=>{ S.rate.use = +d.use; saveCmt(); });
+  if(d.solved) return keepScroll(()=>{ S.rate.solved = d.solved; saveCmt(); });
+  if(d.accept){ const r=S.incoming.find(x=>x.id===d.accept); S.incoming=S.incoming.filter(x=>x.id!==d.accept); S.accepted.push(r); S.points+=20; S.sessionsGiven+=1; S.hoursHelped+=0.5;
+    const id="c-"+r.id; S.convos[id]={id,kind:"tutor",name:r.name,color:"#565a63",label:yearLabel(r.program,r.year),course:r.course,sub:`${r.course} · ${r.lost}/5 lost`,
+      msgs:[{who:"sys",text:`You accepted ${r.name.split(" ")[0]}'s request`},{who:"them",text:`Thank you so much! I'm stuck on ${r.topic.toLowerCase()}.`}],booked:false,slot:"Tomorrow 17:00",unread:1,updated:++CLOCK};
+    return render(); }
+  if(d.decline){ S.incoming=S.incoming.filter(x=>x.id!==d.decline); return render(); }
+  const act = d.act;
+  if(act==="finishOnboard"){
+    const P=S.pick, u=S.user;
+    u.hard = Object.entries(P.hard).map(([c,l])=>({course:c, topic:TOPIC_HINT[c]||"Whole course", lost:l}));
+    u.strong = Object.entries(P.strong).map(([c,g])=>({course:c, grade:g}));
+    if(u.hard.length){ S.req.course=u.hard[0].course; S.req.topic=u.hard[0].topic; }
+    S.incoming = u.strong.length && u.year>1 ? [
+      {id:"r1",name:"Sami T.",program:u.program,year:u.year-1,course:u.strong[0].course,topic:TOPIC_HINT[u.strong[0].course]||"Exercise 3",lost:4,format:"Quick chat",when:"12 min ago"}] : [];
+    S.matches=[]; S.chosen=null; S.accepted=[];
+    return go("home","home"); }
+  if(act==="find"){ readHelp(); matchTutors(); go("finding"); return setTimeout(()=>{ if(S.screen==="finding") go("results"); }, 1300); }
+  if(act==="book"){ const c=S.convos[S.activeConvo]; c.booked=true;
+    if(c.kind==="learner"){ pushMsg(c,{who:"me",text:`Booked ${c.slot}, thanks!`}); pushMsg(c,{who:"them",text:"Perfect. Bring the exercise, we'll go through it step by step."}); }
+    else { pushMsg(c,{who:"me",text:`How about ${c.slot}, 30 min?`}); pushMsg(c,{who:"them",text:"Perfect, see you then!"}); }
+    return render(); }
+  if(act==="sessionDone"){ const c=S.convos[S.activeConvo]; S.chosen = S.chosen && S.chosen.t.id===c.tutorId ? S.chosen : {t:TUTORS.find(t=>t.id===c.tutorId)}; S.rate={use:null,solved:null,comment:""}; return go("rate"); }
+  if(act==="submitRate"){ saveCmt(); const c=S.convos["c-"+S.chosen.t.id]; if(c){ c.done=true; pushMsg(c,{who:"sys",text:`Session done · you rated it ${S.rate.use}/10`}); } return go("thanks"); }
+  if(act==="editProfile"){ S.pick={hard:Object.fromEntries(S.user.hard.map(h=>[h.course,h.lost])), strong:Object.fromEntries(S.user.strong.map(s=>[s.course,s.grade]))}; return go("onboard"); }
+  if(act==="logout") return go("login");
+});
+document.addEventListener("change", e => {
+  if(e.target.id==="progSel"){ S.user.program=e.target.value; S.user.year=1; S.pick={hard:{},strong:{}}; render(false); }
+});
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  if(e.target.id==="loginForm"){
+    const v = $("#email").value.trim();
+    if(!/@aivancity/i.test(v)){ $("#loginErr").style.display="block"; return; }
+    S.user.email = v;
+    const first = v.split("@")[0].split(/[._-]/)[0];          // firstname.lastname@… -> Firstname
+    if(first) S.user.name = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    return go("onboard");
+  }
+  if(e.target.id==="composer"){
+    const v = $("#msg").value.trim(); if(!v) return;
+    const c=S.convos[S.activeConvo]; if(!c) return;
+    pushMsg(c,{who:"me",text:v}); render();
+    setTimeout(()=>{ pushMsg(c,{who:"them",text: c.kind==="learner" ? "Got it. Let's go through it together during the session." : "Thanks, that helps a lot!"});
+      if(S.screen==="chat" && S.activeConvo===c.id) render(); else { c.unread=1; render(); } }, 900);
+  }
+});
+function openingChat(){
+  const c = S.chosen;
+  return [{who:"sys",text:`${c.t.name} accepted your request`},
+          {who:"me",text:`Hi! I'm stuck on ${S.req.topic.toLowerCase()} in ${S.req.course}.`},
+          {who:"them",text: c.exact ? `Hey ${S.user.name}! I had the same course last year. Is it the maths behind it or the code?`
+                                    : `Hey ${S.user.name}! I did a very similar course (${c.sc}). Tell me where you're stuck and we'll go through it.`}];
+}
+function startLearnerConvo(m){
+  const id="c-"+m.t.id;
+  if(!S.convos[id]) S.convos[id]={id,kind:"learner",tutorId:m.t.id,name:m.t.name,color:m.t.color,label:yearLabel(m.t.program,m.t.year),course:S.req.course,
+    sub: m.exact?`Got ${m.info.grade} in ${S.req.course} · ${m.t.level}`:`Similar course: ${m.sc} (${m.info.grade}) · ${m.t.level}`,
+    msgs:[],booked:false,done:false,slot:m.t.slot,unread:0,updated:0};
+  const c=S.convos[id]; c.course=S.req.course; c.done=false; c.booked=false;
+  openingChat().forEach(x=>pushMsg(c,x));
+}
+function readHelp(){ const c=$("#hCourse"), t=$("#hTopic"); if(c) S.req.course=c.value; if(t) S.req.topic=t.value; }
+function saveCmt(){ const c=$("#cmt"); if(c) S.rate.comment=c.value; }
+function jump(id){
+  if(id==="login") return go("login");
+  if(id==="onboard") return go("onboard");
+  if(id==="home") return go("home","home");
+  if(id==="help") return go("help","help");
+  if(["results","chat","rate"].includes(id)){
+    matchTutors();
+    if(id==="results") return go("results","help");
+    if(id==="chat") return go("messages","messages");
+    if(!S.matches.length) return go("results","help");
+    S.chosen = S.chosen || S.matches[0];
+    if(!S.convos["c-"+S.chosen.t.id]) startLearnerConvo(S.chosen);
+    S.activeConvo="c-"+S.chosen.t.id;
+    return go("rate","help");
+  }
+  if(id==="tutor") return go("tutor","tutor");
+  if(id==="school") return go("school","profile");
+}
+function renderQR(){
+  const box = $("#qrcard");
+  if(!REAL_APP_URL){ box.style.display = "none"; return; }   // hidden until the real app has an address
+  box.style.display = "";
+  box.innerHTML = `<div class="qrbox" id="qr" role="img" aria-label="QR code to open the real Relay app"></div>
+    <div><b>Scan to try the real app</b><p>Real aivancity students only, no example people. Sign in with your school email.</p><a href="${esc(REAL_APP_URL)}">${esc(REAL_APP_URL.replace(/^https?:\/\//,""))}</a></div>`;
+  try{
+    const qr = qrcode(0, "M"); qr.addData(REAL_APP_URL); qr.make();
+    const n = qr.getModuleCount(), m = 2; let d = "";
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(qr.isDark(r,c)) d += `M${c+m} ${r+m}h1v1h-1z`;
+    $("#qr").innerHTML = `<svg viewBox="0 0 ${n+2*m} ${n+2*m}" width="116" height="116" shape-rendering="crispEdges" aria-hidden="true"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#14161a"/></svg>`;
+  } catch(e){ $("#qr").outerHTML = `<div class="qrbox empty">QR unavailable. Open the link instead.</div>`; }
+}
+renderQR();
+$("#restart").addEventListener("click", () => { S = fresh(); go("login","home"); });
+
+render(false);
+</script>
+</body>
+</html>
